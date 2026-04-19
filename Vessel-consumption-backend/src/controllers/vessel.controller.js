@@ -9,7 +9,6 @@ export const getAll = async (req, res, next) => {
   }
 };
 
-
 export const getById = async (req, res, next) => {
   try {
     const vessel = await vesselService.getById(+req.params.id, req.user);
@@ -21,7 +20,8 @@ export const getById = async (req, res, next) => {
 
 export const create = async (req, res, next) => {
   try {
-    const vessel = await vesselService.create(req.body);
+    const body = req.validated?.body ?? req.body;
+    const vessel = await vesselService.create(body);
     res.status(201).json(vessel);
   } catch (err) {
     next(err);
@@ -30,7 +30,9 @@ export const create = async (req, res, next) => {
 
 export const update = async (req, res, next) => {
   try {
-    const vessel = await vesselService.update(+req.params.id, req.body);
+    const params = req.validated?.params ?? req.params;
+    const body   = req.validated?.body   ?? req.body;
+    const vessel = await vesselService.update(+params.id, body);
     res.json(vessel);
   } catch (err) {
     next(err);
@@ -50,9 +52,7 @@ export const assignUser = async (req, res, next) => {
   try {
     const vesselId = Number(req.params.id);
     const { userId } = req.body;
-
     const result = await vesselService.assignUser(vesselId, userId);
-
     res.status(201).json(result);
   } catch (err) {
     next(err);
@@ -62,10 +62,18 @@ export const assignUser = async (req, res, next) => {
 export const unassignUser = async (req, res, next) => {
   try {
     const vesselId = Number(req.params.vesselId);
-    const userId = Number(req.params.userId);
+    const userId   = Number(req.params.userId);
+    const result   = await vesselService.unassignUser(vesselId, userId);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+};
 
-    const result = await vesselService.unassignUser(vesselId, userId);
-
+export const getAssignments = async (req, res, next) => {
+  try {
+    const vesselId = Number(req.params.id);
+    const result   = await vesselService.getAssignments(vesselId);
     res.json(result);
   } catch (err) {
     next(err);

@@ -12,11 +12,23 @@ import {
 
 const router = express.Router();
 
+const READ_ROLES  = ["EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN", "CHARTERER"];
+const WRITE_ROLES = ["EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"];
+
+// GET /api/voyages/:voyageId/fuel-consumption/previous-rob
+router.get(
+  "/voyages/:voyageId/fuel-consumption/previous-rob",
+  authenticate,
+  authorize(...READ_ROLES),
+  validate(getFuelConsumptionSchema),
+  fuelConsumptionController.getPreviousRob
+);
+
 // GET /api/voyages/:voyageId/fuel-consumption
 router.get(
   "/voyages/:voyageId/fuel-consumption",
   authenticate,
-  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize(...READ_ROLES),
   validate(getFuelConsumptionSchema),
   fuelConsumptionController.getByVoyage
 );
@@ -25,7 +37,7 @@ router.get(
 router.patch(
   "/voyages/:voyageId/fuel-consumption/rob",
   authenticate,
-  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize(...WRITE_ROLES),
   validate(updateFuelRobSchema),
   fuelConsumptionController.updateRob
 );
@@ -34,7 +46,7 @@ router.patch(
 router.post(
   "/voyages/:voyageId/fuel-consumption/bunkers",
   authenticate,
-  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize(...WRITE_ROLES),
   validate(createFuelBunkerSchema),
   fuelConsumptionController.createBunker
 );
@@ -43,7 +55,7 @@ router.post(
 router.patch(
   "/fuel-consumption/bunkers/:id",
   authenticate,
-  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize(...WRITE_ROLES),
   validate(updateFuelBunkerSchema),
   fuelConsumptionController.updateBunker
 );
@@ -52,7 +64,7 @@ router.patch(
 router.delete(
   "/fuel-consumption/bunkers/:id",
   authenticate,
-  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize(...WRITE_ROLES),
   validate(deleteFuelBunkerSchema),
   fuelConsumptionController.deleteBunker
 );

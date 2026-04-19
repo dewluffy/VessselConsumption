@@ -1,320 +1,327 @@
 // prisma/seed.js
-import { PrismaClient } from "@prisma/client";
+import prisma from "../src/config/prisma.js";
+import bcrypt from "bcryptjs";
 
-const prisma = new PrismaClient();
 
-/**
- * Utils
- */
+
 const pad3 = (n) => String(n).padStart(3, "0");
-
 const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const randFloat = (min, max, d = 2) =>
-  Number((min + Math.random() * (max - min)).toFixed(d));
+const randFloat = (min, max, d = 2) => Number((min + Math.random() * (max - min)).toFixed(d));
+const addHours = (date, h) => new Date(date.getTime() + h * 3600000);
+const addMinutes = (date, m) => new Date(date.getTime() + m * 60000);
 
-const addHours = (date, hours) => new Date(date.getTime() + hours * 3600 * 1000);
-const addMinutes = (date, minutes) => new Date(date.getTime() + minutes * 60 * 1000);
-
-function makeRandomStartInMonth(year, month /* 1-12 */) {
-  const day = randInt(1, 28);
+function makeStartInMonth(year, month, dayOffset = 0) {
+  const day  = Math.min(dayOffset + 1, 28);
   const hour = randInt(0, 23);
-  const minute = [0, 10, 15, 20, 30, 40, 45, 50][randInt(0, 7)];
-  return new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+  const min  = [0, 10, 15, 20, 30, 40, 45, 50][randInt(0, 7)];
+  return new Date(Date.UTC(year, month - 1, day, hour, min, 0));
 }
 
-function chunkVoyageIntoActivities(startAt, endAt) {
-  // สร้าง segment เรียงเวลา ให้ครบทุก activity type
-  const totalMin = Math.max(6 * 60, Math.floor((endAt - startAt) / 60000)); // อย่างน้อย 6 ชม.
+// ── Activity builders ──────────────────────────────────────────────────────
+
+function buildCargo(type, seg, userId) {
+  const dur = Math.max(0.5, (seg.endAt - seg.startAt) / 3600000);
+  const c20 = randInt(5, 40);
+  const c40 = randInt(3, 20);
+  const weight = randFloat((c20 + c40) * 8, (c20 + c40) * 18, 3);
+  const g1h = dur, g2h = dur, dkh = dur * 0.5;
+  const fuelUsed = Number((dur * (randFloat(40, 100) + randFloat(30, 80)) + randFloat(5, 20)).toFixed(2));
+  const berthZone = ["BKK","LCB"][randInt(0,1)];
+  const berthSubs = { BKK: ["BMT","STT 6","STT 4A","PAT 20G","TICT","TCT"], LCB: ["KLN","SCSP","PA1","PA2","A0","A1","B1","B2","C1","D1"] };
+  const berthSub = berthSubs[berthZone][randInt(0, berthSubs[berthZone].length - 1)];
+  return {
+    type,
+    startAt: seg.startAt, endAt: seg.endAt,
+    year: seg.startAt.getUTCFullYear(), month: seg.startAt.getUTCMonth() + 1,
+    active: true, createdById: userId,
+    container20Count: c20, container40Count: c40,
+    totalContainerWeight: weight,
+    reeferCount: randInt(0, 6),
+    generator1Count: 1, generator1Hours: g1h,
+    generator2Count: 1, generator2Hours: g2h,
+    deckgenCount: 1,    deckgenHours: dkh,
+    draftFore: randFloat(3.0, 5.5, 2).toFixed(2),
+    draftAft:  randFloat(3.5, 6.0, 2).toFixed(2),
+    berth: berthZone, berthSub,
+    fuelUsed,
+    remark: null,
+  };
+}
+
+function buildManoeuvring(seg, userId) {
+  const dur = Math.max(0.5, (seg.endAt - seg.startAt) / 3600000);
+  const fuelUsed = Number((dur * (randFloat(180, 380) + randFloat(40, 100))).toFixed(2));
+  return {
+    type: "MANOEUVRING",
+    startAt: seg.startAt, endAt: seg.endAt,
+    year: seg.startAt.getUTCFullYear(), month: seg.startAt.getUTCMonth() + 1,
+    active: true, createdById: userId,
+    reeferCount: randInt(0, 4),
+    mainEngine1Count: 1, mainEngine1Hours: dur,
+    mainEngine2Count: 1, mainEngine2Hours: dur,
+    generator1Count: 1,  generator1Hours: dur,
+    generator2Count: 1,  generator2Hours: dur,
+    currentDirection: ["AGAINST","WITH"][randInt(0,1)],
+    fuelUsed, remark: null,
+  };
+}
+
+function buildFullSpeed(seg, userId) {
+  const dur = Math.max(0.5, (seg.endAt - seg.startAt) / 3600000);
+  const fuelUsed = Number((dur * (randFloat(200, 420) + randFloat(40, 100))).toFixed(2));
+  return {
+    type: "FULL_SPEED_AWAY",
+    startAt: seg.startAt, endAt: seg.endAt,
+    year: seg.startAt.getUTCFullYear(), month: seg.startAt.getUTCMonth() + 1,
+    active: true, createdById: userId,
+    reeferCount: randInt(0, 4),
+    mainEngine1Count: 1, mainEngine1Hours: dur,
+    mainEngine2Count: 1, mainEngine2Hours: dur,
+    generator1Count: 1,  generator1Hours: dur,
+    generator2Count: 1,  generator2Hours: dur,
+    avgSpeed: randFloat(6.5, 14.0, 2),
+    currentDirection: ["AGAINST","WITH"][randInt(0,1)],
+    windDirection: ["N","NE","E","SE","S","SW","W","NW"][randInt(0,7)],
+    fuelUsed, remark: null,
+  };
+}
+
+function buildAnchoring(seg, userId) {
+  const dur = Math.max(0.5, (seg.endAt - seg.startAt) / 3600000);
+  const fuelUsed = Number((dur * randFloat(40, 120)).toFixed(2));
+  return {
+    type: "ANCHORING",
+    startAt: seg.startAt, endAt: seg.endAt,
+    year: seg.startAt.getUTCFullYear(), month: seg.startAt.getUTCMonth() + 1,
+    active: true, createdById: userId,
+    container20Count: randInt(0, 5),
+    container40Count: randInt(0, 3),
+    reeferCount: randInt(0, 4),
+    generator1Count: 1, generator1Hours: dur,
+    generator2Count: 1, generator2Hours: dur,
+    deckgenCount: 1,    deckgenHours: dur * 0.5,
+    draftFore: randFloat(3.0, 5.5, 2).toFixed(2),
+    draftAft:  randFloat(3.5, 6.0, 2).toFixed(2),
+    anchorLocation: ["อ่าวไทย","ปากน้ำ","สมุทรปราการ","ชลบุรี","ระยอง"][randInt(0,4)],
+    fuelUsed, remark: null,
+  };
+}
+
+function buildOther(seg, userId) {
+  return {
+    type: "OTHER",
+    startAt: seg.startAt, endAt: seg.endAt,
+    year: seg.startAt.getUTCFullYear(), month: seg.startAt.getUTCMonth() + 1,
+    active: true, createdById: userId,
+    remark: ["ตรวจเช็คเครื่องยนต์","งานเอกสาร","รอสภาพอากาศ","ซ่อมบำรุง"][randInt(0,3)],
+  };
+}
+
+// แบ่ง voyage เป็น 6 segments ครอบทุก activity type
+function chunkVoyage(startAt, endAt) {
+  const totalMin = Math.max(360, Math.floor((endAt - startAt) / 60000));
   const weights = [
-    { type: "CARGO_LOAD", w: 18 },
-    { type: "MANOEUVRING", w: 10 },
-    { type: "FULL_SPEED_AWAY", w: 40 },
-    { type: "ANCHORING", w: 10 },
-    { type: "CARGO_DISCHARGE", w: 18 },
-    { type: "OTHER", w: 4 },
+    { type: "CARGO_LOAD",      w: 15 },
+    { type: "MANOEUVRING",     w: 10 },
+    { type: "FULL_SPEED_AWAY", w: 35 },
+    { type: "ANCHORING",       w: 10 },
+    { type: "CARGO_DISCHARGE", w: 15 },
+    { type: "OTHER",           w: 5  },
   ];
   const wSum = weights.reduce((a, x) => a + x.w, 0);
+  const mins = weights.map((x) => ({ type: x.type, minutes: Math.max(30, Math.floor((totalMin * x.w) / wSum)) }));
 
-  // allocate minutes per type (ขั้นต่ำ 30 นาที)
-  const mins = weights.map((x) => ({
-    type: x.type,
-    minutes: Math.max(30, Math.floor((totalMin * x.w) / wSum)),
-  }));
-
-  // ปรับ minute รวมให้พอดี totalMin
-  let used = mins.reduce((a, x) => a + x.minutes, 0);
-  let diff = totalMin - used;
+  // ปรับให้ sum = totalMin
+  let diff = totalMin - mins.reduce((a, x) => a + x.minutes, 0);
   while (diff !== 0) {
     const idx = randInt(0, mins.length - 1);
-    if (diff > 0) {
-      mins[idx].minutes += 1;
-      diff -= 1;
-    } else {
-      if (mins[idx].minutes > 30) {
-        mins[idx].minutes -= 1;
-        diff += 1;
-      } else {
-        // หาอันที่ลดได้
-        const j = mins.findIndex((m) => m.minutes > 30);
-        if (j === -1) break;
-        mins[j].minutes -= 1;
-        diff += 1;
-      }
-    }
+    if (diff > 0) { mins[idx].minutes += 1; diff--; }
+    else if (mins[idx].minutes > 30) { mins[idx].minutes -= 1; diff++; }
   }
 
-  // build timeline
   const segments = [];
   let cursor = new Date(startAt);
   for (const m of mins) {
     const s = cursor;
     const e = addMinutes(s, m.minutes);
-    segments.push({ type: m.type, startAt: s, endAt: e, minutes: m.minutes });
+    segments.push({ type: m.type, startAt: s, endAt: e });
     cursor = e;
   }
-
-  // ถ้า cursor เลย endAt ให้ยึด endAt เป็นที่สุดท้าย
   segments[segments.length - 1].endAt = new Date(endAt);
-
   return segments;
 }
 
-function buildActivityPayload(seg, createdById) {
-  const durationHours = Math.max(0.5, (seg.endAt - seg.startAt) / 3600000);
+// ── Reset ──────────────────────────────────────────────────────────────────
 
-  const year = seg.startAt.getUTCFullYear();
-  const month = seg.startAt.getUTCMonth() + 1;
-
-  const common = {
-    startAt: seg.startAt,
-    endAt: seg.endAt,
-    year,
-    month,
-    active: true,
-    createdById,
-  };
-
-  if (seg.type === "OTHER") {
-    return {
-      type: "OTHER",
-      ...common,
-      remark: "งานอื่น ๆ / ตรวจเช็ค / เอกสาร",
-    };
-  }
-
-  const reeferCount = randInt(0, 12);
-  const mainEngineCount = randInt(1, 2);
-  const generatorCount = randInt(1, 2);
-
-  // ใช้ชั่วโมงเท่ากับ duration (ให้สมเหตุผล)
-  const mainEngineHours = durationHours;
-  const generatorHours = durationHours;
-
-  // rate ลิตร/ชั่วโมง (ตั้งสมมติ)
-  const meRate = randFloat(180, 420, 2);
-  const genRate = randFloat(40, 120, 2);
-  const reeferRate = reeferCount * randFloat(0.5, 2.0, 2); // เพิ่มตาม reefer
-
-  const fuelUsed = Number((durationHours * (meRate + genRate) + reeferRate).toFixed(2));
-
-  const base = {
-    type: seg.type,
-    ...common,
-    reeferCount,
-    mainEngineCount,
-    mainEngineHours: mainEngineHours.toFixed(2),
-    generatorCount,
-    generatorHours: generatorHours.toFixed(2),
-    fuelUsed: fuelUsed.toFixed(2),
-    remark: null,
-  };
-
-  if (seg.type === "CARGO_LOAD" || seg.type === "CARGO_DISCHARGE") {
-    const containerCount = randInt(10, 80);
-    const totalContainerWeight = randFloat(containerCount * 8, containerCount * 18, 3); // น้ำหนักรวม
-    return {
-      ...base,
-      containerCount,
-      totalContainerWeight: totalContainerWeight.toFixed(3),
-    };
-  }
-
-  if (seg.type === "FULL_SPEED_AWAY") {
-    return {
-      ...base,
-      avgSpeed: randFloat(8.5, 15.5, 2).toFixed(2),
-    };
-  }
-
-  // MANOEUVRING / ANCHORING
-  return base;
-}
-
-async function ensureAdminUser() {
-  let admin = await prisma.user.findFirst({ where: { role: "ADMIN" } });
-  if (admin) return admin;
-
-  // fallback (กรณีไม่มี user เลย)
-  let hash = "password";
-  try {
-    const bcrypt = (await import("bcrypt")).default;
-    hash = await bcrypt.hash("Admin1234!", 10);
-  } catch {
-    // ถ้าไม่มี bcrypt ก็สร้างไม่ได้แบบ login ได้ (แต่ปกติคุณมี admin อยู่แล้ว)
-  }
-
-  admin = await prisma.user.create({
-    data: {
-      email: "admin@demo.local",
-      password: hash,
-      name: "Admin Demo",
-      role: "ADMIN",
-    },
-  });
-
-  return admin;
-}
-
-async function resetVoyageDataOnly() {
-  // ลบข้อมูลที่เกี่ยวกับ voyage/activity/fuel ก่อน (ไม่ลบ user)
+async function resetAll() {
+  console.log("🗑  ล้างข้อมูลทั้งหมด...");
   await prisma.fuelBunkerEvent.deleteMany({});
   await prisma.fuelRob.deleteMany({});
-  await prisma.consumption.deleteMany({}); // เผื่อมี
+  await prisma.consumption.deleteMany({});
   await prisma.activity.deleteMany({});
   await prisma.voyage.deleteMany({});
   await prisma.vesselAssignment.deleteMany({});
   await prisma.vessel.deleteMany({});
+  await prisma.user.deleteMany({});
+  console.log("✅ ล้างข้อมูลเสร็จ");
 }
 
+// ── Main ───────────────────────────────────────────────────────────────────
+
 async function main() {
-  console.log("🔁 Reset voyage/activity/fuel data...");
-  await resetVoyageDataOnly();
+  await resetAll();
 
-  const admin = await ensureAdminUser();
-  console.log("👤 Using createdBy:", { id: admin.id, email: admin.email });
+  // ── Users (ทุก role) ───────────────────────────────────────────────────────
+  console.log("👤 สร้าง users...");
+  const hash = async (pw) => bcrypt.hash(pw, 10);
 
-  console.log("🚢 Creating 4 vessels...");
-  const vessels = await prisma.$transaction([
-    prisma.vessel.create({
-      data: { code: "VSL-001", name: "Vessel 001", type: "CONTAINER", active: true },
-    }),
-    prisma.vessel.create({
-      data: { code: "VSL-002", name: "Vessel 002", type: "CONTAINER", active: true },
-    }),
-    prisma.vessel.create({
-      data: { code: "VSL-003", name: "Vessel 003", type: "CONTAINER", active: true },
-    }),
-    prisma.vessel.create({
-      data: { code: "VSL-004", name: "Vessel 004", type: "CONTAINER", active: true },
-    }),
+  const users = await Promise.all([
+    prisma.user.create({ data: { email: "admin@demo.local",      password: await hash("Admin1234!"),      name: "Admin Demo",      role: "ADMIN"      } }),
+    prisma.user.create({ data: { email: "manager@demo.local",    password: await hash("Manager1234!"),    name: "Manager Demo",    role: "MANAGER"    } }),
+    prisma.user.create({ data: { email: "supervisor@demo.local", password: await hash("Supervisor1234!"), name: "Supervisor Demo", role: "SUPERVISOR" } }),
+    prisma.user.create({ data: { email: "employee@demo.local",   password: await hash("Employee1234!"),   name: "Employee Demo",   role: "EMPLOYEE"   } }),
+    prisma.user.create({ data: { email: "charterer@demo.local",  password: await hash("Charterer1234!"),  name: "Charterer Demo",  role: "CHARTERER"  } }),
   ]);
 
-  // เดือน 9/2025 ถึง 12/2025
+  const [admin, , , employee] = users;
+  console.log("✅ Users:", users.map((u) => `${u.role}(${u.email})`).join(", "));
+
+  // ── Vessels (3 ลำ) ─────────────────────────────────────────────────────────
+  console.log("🚢 สร้างเรือ 3 ลำ...");
+  const vessels = await prisma.$transaction([
+    prisma.vessel.create({ data: {
+      code: "VSL-001", name: "SRI AMPHAN", shortName: "SAP",
+      type: "CONTAINER VESSEL", active: true,
+      imoNumber: "1068437", callSign: "HSB 8727",
+      flag: "TG", portOfRegistry: "BANGKOK",
+      grt: 1438, nrt: 739, dwtSummer: 1898,
+      loaMeters: 49.98, breadthMeters: 15.80, depthMeters: 6.00,
+      draftSummer: 3.60, containerStowageTeu: 120,
+      mainEngineP: "Shandong Welfang / 350 kW", mainEnginePKw: 350, mainEnginePCons: 32,
+      mainEngineS: "Zibo Z6170 ZLCZ / 350 kW",  mainEngineSKw: 350, mainEngineSCons: 32,
+      generator1: "DEUTZ 226B TD226B-4C", generator1Kw: 50, generator1Cons: 7.5,
+      generator2: "DEUTZ 226B TD226B-4C", generator2Kw: 50, generator2Cons: 7.5,
+      charterer: "River Network Co.,Ltd.",
+    }}),
+    prisma.vessel.create({ data: {
+      code: "VSL-002", name: "SRI SUKHOTHAI", shortName: "SSK",
+      type: "CONTAINER VESSEL", active: true,
+      flag: "TG", portOfRegistry: "BANGKOK",
+      grt: 1520, nrt: 780, dwtSummer: 2100,
+      loaMeters: 52.40, breadthMeters: 16.20, depthMeters: 6.50,
+      draftSummer: 3.80, containerStowageTeu: 140,
+      charterer: "River Network Co.,Ltd.",
+    }}),
+    prisma.vessel.create({ data: {
+      code: "VSL-003", name: "SRI AYUTTHAYA", shortName: "SAY",
+      type: "CONTAINER VESSEL", active: true,
+      flag: "TG", portOfRegistry: "BANGKOK",
+      grt: 1380, nrt: 710, dwtSummer: 1750,
+      loaMeters: 48.50, breadthMeters: 15.40, depthMeters: 5.80,
+      draftSummer: 3.40, containerStowageTeu: 110,
+      charterer: "River Network Co.,Ltd.",
+    }}),
+  ]);
+  console.log("✅ Vessels:", vessels.map((v) => v.name).join(", "));
+
+  // assign employee ให้ทุกลำ
+  await Promise.all(vessels.map((v) =>
+    prisma.vesselAssignment.create({ data: { userId: employee.id, vesselId: v.id, active: true } })
+  ));
+
+  // ── Voyages + Activities + Fuel ────────────────────────────────────────────
   const months = [
-    { y: 2025, m: 9 },
-    { y: 2025, m: 10 },
-    { y: 2025, m: 11 },
-    { y: 2025, m: 12 },
+    { y: 2026, m: 1 },
+    { y: 2026, m: 2 },
+    { y: 2026, m: 3 },
   ];
 
-  let totalVoy = 0;
-  let totalAct = 0;
+  const VOY_PER_MONTH = 20;
+  let totalVoy = 0, totalAct = 0;
 
-  console.log("🧾 Creating voyages + activities + fuel (Sep-Dec 2025)...");
-  for (const v of vessels) {
+  console.log("🧾 สร้าง Voyages + Activities + Fuel (ม.ค.-มี.ค. 2026)...");
+
+  for (const vessel of vessels) {
     for (const mm of months) {
-      const voyCount = randInt(20, 23);
+      for (let i = 0; i < VOY_PER_MONTH; i++) {
+        const startAt  = makeStartInMonth(mm.y, mm.m, i);
+        const durationH = randInt(10, 40);
+        const endAt    = addHours(startAt, durationH);
 
-      for (let i = 1; i <= voyCount; i++) {
-        const startAt = makeRandomStartInMonth(mm.y, mm.m);
-        const durationH = randInt(8, 36);
-        const endAt = addHours(startAt, durationH);
+        const voyNo = `${vessel.code}-${String(mm.y).slice(2)}${String(mm.m).padStart(2,"0")}-${pad3(i+1)}`;
 
-        const voyNo = `${v.code}-${String(mm.y).slice(2)}${String(mm.m).padStart(2, "0")}-${pad3(i)}`;
+        // segments → activities
+        const segments = chunkVoyage(startAt, endAt);
+        const activitiesData = segments.map((seg) => {
+          switch (seg.type) {
+            case "CARGO_LOAD":      return buildCargo("CARGO_LOAD",      seg, admin.id);
+            case "CARGO_DISCHARGE": return buildCargo("CARGO_DISCHARGE", seg, admin.id);
+            case "MANOEUVRING":     return buildManoeuvring(seg, admin.id);
+            case "FULL_SPEED_AWAY": return buildFullSpeed(seg, admin.id);
+            case "ANCHORING":       return buildAnchoring(seg, admin.id);
+            case "OTHER":           return buildOther(seg, admin.id);
+            default:                return buildOther(seg, admin.id);
+          }
+        });
 
-        // activities
-        const segments = chunkVoyageIntoActivities(startAt, endAt);
-        const activitiesPayload = segments.map((seg) => buildActivityPayload(seg, admin.id));
+        // คำนวณ fuel consumed
+        const consumed = activitiesData.reduce((acc, a) => acc + (Number(a.fuelUsed ?? 0) || 0), 0);
 
-        const consumed = activitiesPayload.reduce(
-          (acc, a) => acc + (Number(a.fuelUsed ?? 0) || 0),
-          0
-        );
-
-        // bunker events (0-2)
+        // bunker events (0-2 ครั้ง)
         const bunkerCount = randInt(0, 2);
         const bunkers = [];
         let bunkeredTotal = 0;
         for (let b = 0; b < bunkerCount; b++) {
-          const at = addHours(startAt, randInt(1, Math.max(2, durationH - 1)));
-          const amount = randFloat(800, 7000, 2);
+          const amount = randFloat(1000, 6000, 2);
           bunkeredTotal += amount;
           bunkers.push({
-            at,
-            amount,
-            unit: "L",
+            at:     addHours(startAt, randInt(1, Math.max(2, durationH - 1))),
+            amount, unit: "L",
             remark: "เติมน้ำมัน (DEMO)",
           });
         }
 
         // ROB
         let openingRob = randFloat(8000, 25000, 2);
-        // กันไม่ให้ closing ติดลบ
-        if (openingRob + bunkeredTotal - consumed < 0) {
-          openingRob = consumed + 2000;
-        }
+        if (openingRob + bunkeredTotal - consumed < 0) openingRob = consumed + 3000;
         const closingRob = Number((openingRob + bunkeredTotal - consumed).toFixed(2));
 
         // create voyage with nested
         await prisma.voyage.create({
           data: {
-            vesselId: v.id,
+            vesselId:     vessel.id,
             voyNo,
-            startAt,
-            endAt,
-            status: "CLOSED",
-            active: true,
-
-            postingYear: mm.y,
+            startAt, endAt,
+            status:       "CLOSED",
+            active:       true,
+            postingYear:  mm.y,
             postingMonth: mm.m,
 
-            fuelRob: {
-              create: {
-                openingRob,
-                closingRob,
-                unit: "L",
-              },
-            },
+            fuelRob: { create: { openingRob, closingRob, unit: "L" } },
 
-            fuelBunkers: bunkers.length
-              ? {
-                  create: bunkers,
-                }
-              : undefined,
+            fuelBunkers: bunkers.length ? { create: bunkers } : undefined,
 
-            activities: {
-              create: activitiesPayload,
-            },
+            activities: { create: activitiesData },
           },
         });
 
-        totalVoy += 1;
-        totalAct += activitiesPayload.length;
+        totalVoy++;
+        totalAct += activitiesData.length;
       }
-
-      console.log(`✅ ${v.code} - ${mm.m}/${mm.y}: created ${voyCount} voyages`);
+      console.log(`  ✅ ${vessel.code} - ${mm.m}/${mm.y}: ${VOY_PER_MONTH} voyages`);
     }
   }
 
-  console.log("🎉 Done!");
-  console.log("Summary:", { vessels: vessels.length, voyages: totalVoy, activities: totalAct });
+  console.log("\n🎉 Seed เสร็จสิ้น!");
+  console.log(`📊 สรุป:`);
+  console.log(`   - Users:      ${users.length} คน`);
+  console.log(`   - Vessels:    ${vessels.length} ลำ`);
+  console.log(`   - Voyages:    ${totalVoy} รายการ`);
+  console.log(`   - Activities: ${totalAct} รายการ`);
+  console.log(`\n🔑 Login credentials:`);
+  users.forEach((u) => console.log(`   ${u.role.padEnd(12)} ${u.email}`));
 }
 
 main()
-  .catch((e) => {
-    console.error("❌ Seed failed:", e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => { console.error("❌ Seed failed:", e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });

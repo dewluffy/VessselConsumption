@@ -5,15 +5,14 @@ export const validate = (schema) => (req, res, next) => {
       params: req.params,
       query: req.query,
     });
-
-    // ✅ เก็บค่าที่ผ่านการ coerce แล้วไว้ที่นี่
     req.validated = parsed;
-
     next();
   } catch (err) {
+    console.error("Validation full error:", err); // ← ดู error ทั้งหมด
+    console.error("Request body:", JSON.stringify(req.body, null, 2)); // ← ดูว่าส่งอะไรมา
     return res.status(400).json({
       message: "Validation error",
-      errors: err.errors,
+      errors: err.errors ?? err.message ?? err,
     });
   }
 };

@@ -16,7 +16,7 @@ const router = express.Router();
 router.get(
   "/vessels/:vesselId/voyages",
   authenticate,
-  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN", "CHARTERER"),
   validate(listVoyagesByVesselSchema),
   voyageController.listByVessel
 );
@@ -34,7 +34,7 @@ router.post(
 router.get(
   "/voyages/:id",
   authenticate,
-  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN", "CHARTERER"),
   voyageController.getById
 );
 

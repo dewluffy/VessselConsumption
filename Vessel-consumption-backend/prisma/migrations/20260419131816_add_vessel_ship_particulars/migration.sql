@@ -1,0 +1,68 @@
+/*
+  Warnings:
+
+  - You are about to alter the column `type` on the `vessel` table. The data in that column could be lost. The data in that column will be cast from `VarChar(191)` to `VarChar(50)`.
+  - A unique constraint covering the columns `[imoNumber]` on the table `Vessel` will be added. If there are existing duplicate values, this will fail.
+
+*/
+-- AlterTable
+ALTER TABLE `vessel` ADD COLUMN `auxEngine` VARCHAR(200) NULL,
+    ADD COLUMN `breadthMeters` DECIMAL(8, 3) NULL,
+    ADD COLUMN `callSign` VARCHAR(20) NULL,
+    ADD COLUMN `charterer` VARCHAR(200) NULL,
+    ADD COLUMN `classification` VARCHAR(50) NULL,
+    ADD COLUMN `contactEmail` VARCHAR(200) NULL,
+    ADD COLUMN `contactLine` VARCHAR(100) NULL,
+    ADD COLUMN `contactPhone` VARCHAR(50) NULL,
+    ADD COLUMN `containerStowageTeu` INTEGER NULL,
+    ADD COLUMN `depthMeters` DECIMAL(8, 3) NULL,
+    ADD COLUMN `dgApproved` BOOLEAN NULL,
+    ADD COLUMN `draftAftFullLoad` DECIMAL(8, 3) NULL,
+    ADD COLUMN `draftSummer` DECIMAL(8, 3) NULL,
+    ADD COLUMN `draftTropical` DECIMAL(8, 3) NULL,
+    ADD COLUMN `draftTropicalFw` DECIMAL(8, 3) NULL,
+    ADD COLUMN `dwtSummer` DECIMAL(10, 3) NULL,
+    ADD COLUMN `dwtTropical` DECIMAL(10, 3) NULL,
+    ADD COLUMN `exName` VARCHAR(100) NULL,
+    ADD COLUMN `flag` VARCHAR(50) NULL,
+    ADD COLUMN `freshWaterTankCbm` DECIMAL(10, 3) NULL,
+    ADD COLUMN `fuelBunkerTankCbm` DECIMAL(10, 3) NULL,
+    ADD COLUMN `fwa` DECIMAL(8, 3) NULL,
+    ADD COLUMN `generator1` VARCHAR(200) NULL,
+    ADD COLUMN `generator1Cons` DECIMAL(8, 2) NULL,
+    ADD COLUMN `generator1Kw` DECIMAL(8, 2) NULL,
+    ADD COLUMN `generator2` VARCHAR(200) NULL,
+    ADD COLUMN `generator2Cons` DECIMAL(8, 2) NULL,
+    ADD COLUMN `generator2Kw` DECIMAL(8, 2) NULL,
+    ADD COLUMN `grt` DECIMAL(12, 2) NULL,
+    ADD COLUMN `imoNumber` VARCHAR(20) NULL,
+    ADD COLUMN `lastDrydock` DATETIME(3) NULL,
+    ADD COLUMN `lightShip` DECIMAL(10, 3) NULL,
+    ADD COLUMN `loaMeters` DECIMAL(8, 3) NULL,
+    ADD COLUMN `mainEngineMaxCons` DECIMAL(8, 2) NULL,
+    ADD COLUMN `mainEngineP` VARCHAR(200) NULL,
+    ADD COLUMN `mainEnginePCons` DECIMAL(8, 2) NULL,
+    ADD COLUMN `mainEnginePKw` DECIMAL(10, 2) NULL,
+    ADD COLUMN `mainEngineS` VARCHAR(200) NULL,
+    ADD COLUMN `mainEngineSCons` DECIMAL(8, 2) NULL,
+    ADD COLUMN `mainEngineSKw` DECIMAL(10, 2) NULL,
+    ADD COLUMN `maxCargoCapacityMt` DECIMAL(10, 3) NULL,
+    ADD COLUMN `maximumRpm` DECIMAL(8, 2) NULL,
+    ADD COLUMN `maximumSpeed` DECIMAL(6, 2) NULL,
+    ADD COLUMN `mmsi` VARCHAR(20) NULL,
+    ADD COLUMN `noOfCargoHold` INTEGER NULL,
+    ADD COLUMN `noOfRow` INTEGER NULL,
+    ADD COLUMN `normalFullRpm` DECIMAL(8, 2) NULL,
+    ADD COLUMN `normalSpeed` DECIMAL(6, 2) NULL,
+    ADD COLUMN `nrt` DECIMAL(12, 2) NULL,
+    ADD COLUMN `owner` VARCHAR(200) NULL,
+    ADD COLUMN `ownerAddress` VARCHAR(500) NULL,
+    ADD COLUMN `portOfRegistry` VARCHAR(100) NULL,
+    ADD COLUMN `reeferPoints` INTEGER NULL,
+    ADD COLUMN `registrationNo` VARCHAR(50) NULL,
+    ADD COLUMN `tpc` DECIMAL(8, 3) NULL,
+    ADD COLUMN `yearBuilt` INTEGER NULL,
+    MODIFY `type` VARCHAR(50) NULL;
+
+-- CreateIndex
+CREATE UNIQUE INDEX `Vessel_imoNumber_key` ON `Vessel`(`imoNumber`);

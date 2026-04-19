@@ -43,6 +43,10 @@ export const useVoyDetailStore = create((set, get) => ({
       set({ loadingVoy: false });
     }
   },
+  
+  updateVoyage: async (voyageId, body) => {
+    await voyDetailApi.updateVoyage(voyageId, body);
+  },
 
   fetchActivities: async (voyageId) => {
     set({ loadingActivities: true, lastError: null });
@@ -71,6 +75,16 @@ export const useVoyDetailStore = create((set, get) => ({
       throw e;
     } finally {
       set({ loadingFuel: false });
+    }
+  },
+
+  // ดึง closing ROB ของ voyage ก่อนหน้า
+  fetchPreviousRob: async (voyageId) => {
+    try {
+      const { data } = await voyDetailApi.getPreviousRob(voyageId);
+      return data;
+    } catch {
+      return { hasPrevious: false, openingRob: null };
     }
   },
 

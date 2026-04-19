@@ -1,17 +1,16 @@
 import prisma from "../config/prisma.js";
 import createError from "../utils/create-error.util.js";
 
-const isEmployee = (user) => user.role === "EMPLOYEE";
+const isRestricted = (user) =>
+  user.role === "EMPLOYEE" || user.role === "CHARTERER";
 
 const assertVoyageAccess = async (voyageId, user) => {
-  // privileged เห็นได้หมด
-  if (!isEmployee(user)) {
+  if (!isRestricted(user)) {
     const v = await prisma.voyage.findUnique({ where: { id: voyageId }, select: { id: true } });
     if (!v) throw createError(404, "Voyage not found");
     return;
   }
 
-  // employee ต้องเป็น voy ของเรือที่ assign
   const v = await prisma.voyage.findFirst({
     where: {
       id: voyageId,
@@ -26,25 +25,60 @@ const assertVoyageAccess = async (voyageId, user) => {
   if (!v) throw createError(403, "Forbidden");
 };
 
+export const getPreviousRob = async (voyageId, user) => {
+  await assertVoyageAccess(voyageId, user);
+
+  const voyage = await prisma.voyage.findUnique({
+    where:  { id: voyageId },
+    select: { id: true, vesselId: true, startAt: true },
+  });
+  if (!voyage) throw createError(404, "Voyage not found");
+
+  // หา voyage ก่อนหน้าของเรือลำเดียวกัน ปิดแล้ว และจบก่อน voyage นี้เริ่ม
+  const prevVoyage = await prisma.voyage.findFirst({
+    where: {
+      vesselId: voyage.vesselId,
+      active:   true,
+      status:   "CLOSED",
+      endAt:    { lt: voyage.startAt },
+      id:       { not: voyageId },
+    },
+    orderBy: { endAt: "desc" },
+    select:  { id: true, voyNo: true, endAt: true },
+  });
+
+  if (!prevVoyage) return { hasPrevious: false, openingRob: null };
+
+  const rob = await prisma.fuelRob.findUnique({
+    where:  { voyageId: prevVoyage.id },
+    select: { closingRob: true, unit: true },
+  });
+
+  return {
+    hasPrevious: true,
+    openingRob:  rob?.closingRob ?? null,
+    unit:        rob?.unit ?? "L",
+    fromVoyNo:   prevVoyage.voyNo,
+    fromEndAt:   prevVoyage.endAt,
+  };
+};
+
 export const getFuelConsumption = async (voyageId, user) => {
   await assertVoyageAccess(voyageId, user);
 
-  // ROB
   const rob = await prisma.fuelRob.findUnique({
-    where: { voyageId },
+    where:  { voyageId },
     select: { openingRob: true, closingRob: true, unit: true },
   });
 
-  // Bunkers
   const bunkers = await prisma.fuelBunkerEvent.findMany({
-    where: { voyageId },
+    where:   { voyageId },
     orderBy: { at: "asc" },
-    select: { id: true, at: true, amount: true, unit: true, remark: true, createdAt: true },
+    select:  { id: true, at: true, amount: true, unit: true, remark: true, createdAt: true },
   });
 
-  // Consumed from activities + summary by type
   const activities = await prisma.activity.findMany({
-    where: { voyageId, active: true },
+    where:  { voyageId, active: true },
     select: { type: true, fuelUsed: true },
   });
 
@@ -60,10 +94,7 @@ export const getFuelConsumption = async (voyageId, user) => {
   return {
     rob: rob ?? { openingRob: 0, closingRob: 0, unit: "L" },
     bunkers,
-    computed: {
-      consumedFromActivities,
-      byActivityType,
-    },
+    computed: { consumedFromActivities, byActivityType },
   };
 };
 
@@ -100,9 +131,9 @@ export const createFuelBunker = async (voyageId, user, data) => {
   return prisma.fuelBunkerEvent.create({
     data: {
       voyageId,
-      at: data.at,
+      at:     data.at,
       amount: data.amount,
-      unit: "L",
+      unit:   "L",
       remark: data.remark,
     },
     select: { id: true, at: true, amount: true, unit: true, remark: true, createdAt: true },
@@ -111,11 +142,10 @@ export const createFuelBunker = async (voyageId, user, data) => {
 
 const assertBunkerAccessById = async (id, user) => {
   const bunker = await prisma.fuelBunkerEvent.findUnique({
-    where: { id },
+    where:  { id },
     select: { id: true, voyageId: true },
   });
   if (!bunker) throw createError(404, "Bunker event not found");
-
   await assertVoyageAccess(bunker.voyageId, user);
   return bunker;
 };
@@ -126,7 +156,7 @@ export const updateFuelBunker = async (id, user, data) => {
   return prisma.fuelBunkerEvent.update({
     where: { id },
     data: {
-      ...(data.at !== undefined ? { at: data.at } : {}),
+      ...(data.at     !== undefined ? { at:     data.at     } : {}),
       ...(data.amount !== undefined ? { amount: data.amount } : {}),
       ...(data.remark !== undefined ? { remark: data.remark } : {}),
     },

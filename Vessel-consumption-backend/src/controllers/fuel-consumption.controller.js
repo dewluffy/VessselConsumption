@@ -1,5 +1,15 @@
 import * as fuelConsumptionService from "../services/fuel-consumption.service.js";
 
+export const getPreviousRob = async (req, res, next) => {
+  try {
+    const voyageId = Number(req.params.voyageId);
+    const data = await fuelConsumptionService.getPreviousRob(voyageId, req.user);
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+};
+
 export const getByVoyage = async (req, res, next) => {
   try {
     const voyageId = Number(req.params.voyageId);

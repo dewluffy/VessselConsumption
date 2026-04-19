@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const roles = z.enum(["EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"]);
+const roles = z.enum(["EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN", "CHARTERER"]);
 
 const boolQuery = z.preprocess((v) => {
   if (v === "true") return true;

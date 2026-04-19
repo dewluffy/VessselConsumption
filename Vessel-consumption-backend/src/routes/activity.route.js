@@ -13,7 +13,7 @@ const router = express.Router();
 router.get(
   "/voyages/:voyageId/activities",
   authenticate,
-  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN", "CHARTERER"),
   activityController.listByVoyage
 );
 
@@ -36,7 +36,7 @@ router.post(
 router.get(
   "/activities/:id",
   authenticate,
-  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN", "CHARTERER"),
   activityController.getById
 );
 

@@ -2,6 +2,9 @@ import prisma from "../config/prisma.js";
 import createError from "../utils/create-error.util.js";
 import { activityBodySchema } from "../validators/activity.schema.js";
 
+const isRestricted = (user) =>
+  user.role === "EMPLOYEE" || user.role === "CHARTERER";
+
 const ensureVoyageAccess = async (voyageId, user, { requireOpen = false } = {}) => {
   const voyage = await prisma.voyage.findFirst({
     where: {
@@ -9,7 +12,7 @@ const ensureVoyageAccess = async (voyageId, user, { requireOpen = false } = {}) 
       active: true,
       vessel: {
         active: true,
-        ...(user.role === "EMPLOYEE"
+        ...(isRestricted(user)
           ? { assignments: { some: { userId: user.id, active: true } } }
           : {}),
       },
@@ -30,7 +33,7 @@ const ensureActivityAccess = async (activityId, user) => {
         active: true,
         vessel: {
           active: true,
-          ...(user.role === "EMPLOYEE"
+          ...(isRestricted(user)
             ? { assignments: { some: { userId: user.id, active: true } } }
             : {}),
         },
@@ -38,23 +41,15 @@ const ensureActivityAccess = async (activityId, user) => {
     },
     select: {
       id: true, type: true, startAt: true, endAt: true, voyageId: true,
-
-      // Cargo / Anchoring
       container20Count: true, container40Count: true,
       totalContainerWeight: true,
       draftFore: true, draftAft: true,
-      berth: true, anchorLocation: true,
-
-      // Generator + Deckgen
+      berth: true, berthSub: true, anchorLocation: true,
       generator1Count: true, generator1Hours: true,
       generator2Count: true, generator2Hours: true,
       deckgenCount: true, deckgenHours: true,
-
-      // Main engine 1/2
       mainEngine1Count: true, mainEngine1Hours: true,
       mainEngine2Count: true, mainEngine2Hours: true,
-
-      // Common
       reeferCount: true, fuelUsed: true,
       avgSpeed: true, currentDirection: true, windDirection: true,
       remark: true,
@@ -72,16 +67,15 @@ const validatePatchByExistingType = (existing, patch) => {
     startAt: patch.startAt ?? existing.startAt,
     endAt:   patch.endAt   ?? existing.endAt,
 
-    // Cargo / Anchoring
     container20Count:     patch.container20Count     ?? existing.container20Count,
     container40Count:     patch.container40Count     ?? existing.container40Count,
     totalContainerWeight: patch.totalContainerWeight ?? existing.totalContainerWeight,
     draftFore:      patch.draftFore      ?? existing.draftFore,
     draftAft:       patch.draftAft       ?? existing.draftAft,
     berth:          patch.berth          ?? existing.berth,
+    berthSub:       patch.berthSub       ?? existing.berthSub,
     anchorLocation: patch.anchorLocation ?? existing.anchorLocation,
 
-    // Generator + Deckgen
     generator1Count: patch.generator1Count ?? existing.generator1Count,
     generator1Hours: patch.generator1Hours ?? existing.generator1Hours,
     generator2Count: patch.generator2Count ?? existing.generator2Count,
@@ -89,13 +83,11 @@ const validatePatchByExistingType = (existing, patch) => {
     deckgenCount:    patch.deckgenCount    ?? existing.deckgenCount,
     deckgenHours:    patch.deckgenHours    ?? existing.deckgenHours,
 
-    // Main engine 1/2
     mainEngine1Count: patch.mainEngine1Count ?? existing.mainEngine1Count,
     mainEngine1Hours: patch.mainEngine1Hours ?? existing.mainEngine1Hours,
     mainEngine2Count: patch.mainEngine2Count ?? existing.mainEngine2Count,
     mainEngine2Hours: patch.mainEngine2Hours ?? existing.mainEngine2Hours,
 
-    // Common
     reeferCount:      patch.reeferCount      ?? existing.reeferCount,
     fuelUsed:         patch.fuelUsed         ?? existing.fuelUsed,
     avgSpeed:         patch.avgSpeed         ?? existing.avgSpeed,
@@ -107,9 +99,6 @@ const validatePatchByExistingType = (existing, patch) => {
   return activityBodySchema.parse(merged);
 };
 
-/**
- * Map parsed → prisma data (null-guard ตาม type)
- */
 const buildActivityData = (parsed) => {
   const isCargo     = parsed.type === "CARGO_LOAD" || parsed.type === "CARGO_DISCHARGE";
   const isAnchoring = parsed.type === "ANCHORING";
@@ -127,42 +116,34 @@ const buildActivityData = (parsed) => {
   const n = (v) => v ?? null;
 
   return {
-    type:    parsed.type,
-    startAt: parsed.startAt,
-    endAt:   parsed.endAt,
+    type: parsed.type, startAt: parsed.startAt, endAt: parsed.endAt,
 
-    // Container
     container20Count:     hasContainer ? n(parsed.container20Count)     : null,
     container40Count:     hasContainer ? n(parsed.container40Count)     : null,
     totalContainerWeight: isCargo      ? n(parsed.totalContainerWeight) : null,
 
-    // Draft + berth + anchorLocation
-    draftFore:      hasDraft      ? n(parsed.draftFore)      : null,
-    draftAft:       hasDraft      ? n(parsed.draftAft)       : null,
-    berth:          isCargo       ? n(parsed.berth)          : null,
-    anchorLocation: isAnchoring   ? n(parsed.anchorLocation) : null,
+    draftFore:      hasDraft    ? n(parsed.draftFore)      : null,
+    draftAft:       hasDraft    ? n(parsed.draftAft)       : null,
+    berth:          isCargo     ? n(parsed.berth)          : null,
+    berthSub:       isCargo     ? n(parsed.berthSub)       : null,
+    anchorLocation: isAnchoring ? n(parsed.anchorLocation) : null,
 
-    // Generator
     generator1Count: hasGenerator ? n(parsed.generator1Count) : null,
     generator1Hours: hasGenerator ? n(parsed.generator1Hours) : null,
     generator2Count: hasGenerator ? n(parsed.generator2Count) : null,
     generator2Hours: hasGenerator ? n(parsed.generator2Hours) : null,
 
-    // Deckgen
     deckgenCount: hasDeckgen ? n(parsed.deckgenCount) : null,
     deckgenHours: hasDeckgen ? n(parsed.deckgenHours) : null,
 
-    // Main engine 1/2
     mainEngine1Count: hasMainEngine ? n(parsed.mainEngine1Count) : null,
     mainEngine1Hours: hasMainEngine ? n(parsed.mainEngine1Hours) : null,
     mainEngine2Count: hasMainEngine ? n(parsed.mainEngine2Count) : null,
     mainEngine2Hours: hasMainEngine ? n(parsed.mainEngine2Hours) : null,
 
-    // Current + wind
     currentDirection: hasCurrent ? n(parsed.currentDirection) : null,
     windDirection:    isFSW      ? n(parsed.windDirection)    : null,
 
-    // Common
     reeferCount: n(parsed.reeferCount),
     fuelUsed:    n(parsed.fuelUsed),
     avgSpeed:    isFSW ? n(parsed.avgSpeed) : null,
@@ -176,6 +157,7 @@ export const listByVoyage = async (voyageId, user) => {
 };
 
 export const createActivity = async (voyageId, data, user) => {
+  if (user.role === "CHARTERER") throw createError(403, "Forbidden");
   await ensureVoyageAccess(voyageId, user, { requireOpen: true });
   const parsed = activityBodySchema.parse(data);
   const d = new Date(parsed.startAt);
@@ -202,6 +184,7 @@ export const getById = async (id, user) => {
 };
 
 export const updateActivity = async (id, patch, user) => {
+  if (user.role === "CHARTERER") throw createError(403, "Forbidden");
   const existing = await ensureActivityAccess(id, user);
   await ensureVoyageAccess(existing.voyageId, user, { requireOpen: true });
   const validated = validatePatchByExistingType(existing, patch);
@@ -218,6 +201,7 @@ export const updateActivity = async (id, patch, user) => {
 };
 
 export const removeActivity = async (id, user) => {
+  if (user.role === "CHARTERER") throw createError(403, "Forbidden");
   const existing = await ensureActivityAccess(id, user);
   await ensureVoyageAccess(existing.voyageId, user, { requireOpen: true });
   return prisma.activity.update({ where: { id }, data: { active: false } });

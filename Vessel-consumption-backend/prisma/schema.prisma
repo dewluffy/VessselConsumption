@@ -24,10 +24,90 @@ model User {
 model Vessel {
   id     Int     @id @default(autoincrement())
   code   String  @unique
-  name   String
-  type   String?
   active Boolean @default(true)
 
+  // ── ข้อมูลทั่วไป ───────────────────────────────
+  name         String
+  shortName    String? @db.VarChar(20)
+  exName       String? @db.VarChar(100) // ชื่อเก่า เช่น EX. HBD 78
+  type         String? @db.VarChar(50) // เช่น CONTAINER VESSEL
+  owner        String? @db.VarChar(200)
+  ownerAddress String? @db.VarChar(500)
+  charterer    String? @db.VarChar(200) // ผู้เช่าเรือ
+
+  // ── ข้อมูลทะเบียน ──────────────────────────────
+  imoNumber      String?   @unique @db.VarChar(20)
+  mmsi           String?   @db.VarChar(20)
+  callSign       String?   @db.VarChar(20)
+  registrationNo String?   @db.VarChar(50)
+  flag           String?   @db.VarChar(50)
+  portOfRegistry String?   @db.VarChar(100)
+  classification String?   @db.VarChar(50) // เช่น TG, BV, LR
+  yearBuilt      Int?
+  lastDrydock    DateTime?
+
+  // ── ขนาดเรือ ───────────────────────────────────
+  loaMeters        Decimal? @db.Decimal(8, 3) // LOA (m)
+  breadthMeters    Decimal? @db.Decimal(8, 3) // Breadth (m)
+  depthMeters      Decimal? @db.Decimal(8, 3) // Depth (m)
+  draftSummer      Decimal? @db.Decimal(8, 3) // Draft Summer (m)
+  draftTropical    Decimal? @db.Decimal(8, 3) // Draft Tropical (m)
+  draftTropicalFw  Decimal? @db.Decimal(8, 3) // Draft Tropical FW (m)
+  draftAftFullLoad Decimal? @db.Decimal(8, 3) // Draft AFT at full load (m)
+  fwa              Decimal? @db.Decimal(8, 3) // FWA (mm)
+  lightShip        Decimal? @db.Decimal(10, 3) // Light Ship (MT)
+  dwtSummer        Decimal? @db.Decimal(10, 3) // DWT Summer (MT)
+  dwtTropical      Decimal? @db.Decimal(10, 3) // DWT Tropical (MT)
+  tpc              Decimal? @db.Decimal(8, 3) // TPC (MT)
+
+  // ── Tonnage ────────────────────────────────────
+  grt Decimal? @db.Decimal(12, 2) // GRT (T)
+  nrt Decimal? @db.Decimal(12, 2) // NRT (T)
+
+  // ── Speed & Consumption ────────────────────────
+  normalSpeed   Decimal? @db.Decimal(6, 2) // Normal speed (kts)
+  normalFullRpm Decimal? @db.Decimal(8, 2) // Normal full RPM
+  maximumSpeed  Decimal? @db.Decimal(6, 2) // Maximum speed (kts)
+  maximumRpm    Decimal? @db.Decimal(8, 2) // Maximum RPM
+
+  // ── Main Engine ────────────────────────────────
+  mainEngineP       String?  @db.VarChar(200) // M/E (P) maker+model
+  mainEnginePKw     Decimal? @db.Decimal(10, 2)
+  mainEnginePCons   Decimal? @db.Decimal(8, 2) // L/HR at normal
+  mainEngineS       String?  @db.VarChar(200) // M/E (S) maker+model
+  mainEngineSKw     Decimal? @db.Decimal(10, 2)
+  mainEngineSCons   Decimal? @db.Decimal(8, 2) // L/HR at normal
+  mainEngineMaxCons Decimal? @db.Decimal(8, 2) // L/HR at MAX RPM
+
+  // ── Generator ─────────────────────────────────
+  generator1     String?  @db.VarChar(200) // maker+model
+  generator1Kw   Decimal? @db.Decimal(8, 2)
+  generator1Cons Decimal? @db.Decimal(8, 2) // L/HR
+  generator2     String?  @db.VarChar(200)
+  generator2Kw   Decimal? @db.Decimal(8, 2)
+  generator2Cons Decimal? @db.Decimal(8, 2) // L/HR
+  auxEngine      String?  @db.VarChar(200)
+
+  // ── Tank Capacity ──────────────────────────────
+  fuelBunkerTankCbm Decimal? @db.Decimal(10, 3) // CBM
+  freshWaterTankCbm Decimal? @db.Decimal(10, 3) // CBM
+
+  // ── Cargo Capacity ─────────────────────────────
+  containerStowageTeu Int? // TEU ปัจจุบัน
+  maxTeus             Int? // Max TEUs บรรทุกได้ 100%
+  maxCargoCapacityMt  Decimal? @db.Decimal(10, 3) // MT ปัจจุบัน
+  maxWeightMt         Decimal? @db.Decimal(10, 3) // Max Weight บรรทุกได้ 100% (MT)
+  noOfCargoHold       Int?
+  noOfRow             Int?
+  reeferPoints        Int?
+  dgApproved          Boolean? // DG Approved
+
+  // ── Ship's Contact ─────────────────────────────
+  contactEmail String? @db.VarChar(200)
+  contactLine  String? @db.VarChar(100)
+  contactPhone String? @db.VarChar(50)
+
+  // ── Relations ──────────────────────────────────
   assignments VesselAssignment[]
   voyages     Voyage[]
 
@@ -119,7 +199,7 @@ model Activity {
   draftAft  String? @db.VarChar(20)
 
   // ✅ ท่าเทียบ (Cargo เท่านั้น)
-  berth    String? @db.VarChar(10)  // "BKK" | "LCB"
+  berth    String? @db.VarChar(10) // "BKK" | "LCB"
   berthSub String? @db.VarChar(20) // เช่น "BMT", "KLN", "PA1"
 
   // ✅ สถานที่ทอดสมอ (Anchoring เท่านั้น)
@@ -238,6 +318,7 @@ enum Role {
   SUPERVISOR
   MANAGER
   ADMIN
+  CHARTERER
 }
 
 enum ActivityType {

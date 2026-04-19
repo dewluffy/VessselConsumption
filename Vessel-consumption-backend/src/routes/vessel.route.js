@@ -1,64 +1,87 @@
 import express from "express";
 import { authenticate, authorize } from "../middlewares/auth.middleware.js";
-import { unassignUserSchema } from "../validators/assignment.schema.js";
 import { validate } from "../middlewares/validate.middleware.js";
-import { assignUserSchema } from "../validators/vessel.schema.js";
+import {
+  createVesselSchema,
+  updateVesselSchema,
+  vesselIdParamSchema,
+  assignUserSchema,
+} from "../validators/vessel.schema.js";
+import { unassignUserSchema } from "../validators/assignment.schema.js";
 import * as vesselController from "../controllers/vessel.controller.js";
 
 const router = express.Router();
 
-// 👁 ทุก role ดูได้
+const ALL_ROLES    = ["EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"];
+const MANAGE_ROLES = ["SUPERVISOR", "MANAGER", "ADMIN"];
+
+// ── Read (ทุก role) ────────────────────────────────────────────────────────
 router.get(
   "/",
   authenticate,
-  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize(...ALL_ROLES),
   vesselController.getAll
 );
 
 router.get(
   "/:id",
   authenticate,
-  authorize("EMPLOYEE", "SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize(...ALL_ROLES),
+  validate(vesselIdParamSchema),
   vesselController.getById
 );
 
-// ✏️ เฉพาะระดับบน
+// ── Write (SUPERVISOR ขึ้นไป) ──────────────────────────────────────────────
+router.get(
+  "/:id/assignments",
+  authenticate,
+  authorize(...MANAGE_ROLES),
+  validate(vesselIdParamSchema),
+  vesselController.getAssignments
+);
+
+
 router.post(
   "/",
   authenticate,
-  authorize("SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize(...MANAGE_ROLES),
+  validate(createVesselSchema),
   vesselController.create
 );
 
 router.patch(
   "/:id",
   authenticate,
-  authorize("SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize(...MANAGE_ROLES),
+  validate(updateVesselSchema),
   vesselController.update
 );
 
-// ❌ delete เฉพาะ admin
 router.delete(
   "/:id",
   authenticate,
-  authorize("ADMIN"),
+  authorize(...MANAGE_ROLES),
+  validate(vesselIdParamSchema),
   vesselController.remove
 );
 
+// ── Assignment ─────────────────────────────────────────────────────────────
 router.post(
   "/:id/assign",
   authenticate,
-  authorize("SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize(...MANAGE_ROLES),
   validate(assignUserSchema),
   vesselController.assignUser
 );
 
 router.delete(
-  "/:vesselId/assign/:userId",
+  "/:vesselId/assignments/:userId",
   authenticate,
-  authorize("SUPERVISOR", "MANAGER", "ADMIN"),
+  authorize(...MANAGE_ROLES),
   validate(unassignUserSchema),
   vesselController.unassignUser
 );
+
+
 
 export default router;
