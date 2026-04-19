@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       Int    @id @default(autoincrement())
+  email    String @unique
+  password String
+  name     String
+  role     Role   @default(EMPLOYEE)
+
+  assignments         VesselAssignment[]
+  activitiesCreated   Activity[]         @relation("ActivityCreatedBy")
+  consumptionsCreated Consumption[]      @relation("ConsumptionCreatedBy")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Vessel {
+  id     Int     @id @default(autoincrement())
+  code   String  @unique
+  name   String
+  type   String?
+  active Boolean @default(true)
+
+  assignments VesselAssignment[]
+  voyages     Voyage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model VesselAssignment {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  vesselId  Int
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  vessel Vessel @relation(fields: [vesselId], references: [id])
+
+  @@unique([userId, vesselId])
+  @@index([userId])
+  @@index([vesselId])
+}
+
+model Voyage {
+  id       Int          @id @default(autoincrement())
+  vesselId Int
+  voyNo    String
+  startAt  DateTime
+  endAt    DateTime?
+  status   VoyageStatus @default(OPEN)
+  active   Boolean      @default(true)
+
+  fuelRob     FuelRob?
+  fuelBunkers FuelBunkerEvent[]
+
+  postingYear  Int
+  postingMonth Int
+
+  vessel     Vessel     @relation(fields: [vesselId], references: [id])
+  activities Activity[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([vesselId, voyNo])
+  @@index([vesselId])
+  @@index([postingYear, postingMonth])
+}
+
+model Activity {
+  id       Int          @id @default(autoincrement())
+  voyageId Int
+  type     ActivityType
+  startAt  DateTime
+  endAt    DateTime
+
+  consumptions Consumption[]
+
+  // (optional) เก็บปี/เดือนจาก startAt เพื่อ query ง่ายในอนาคต
+  year  Int
+  month Int
+
+  // ✅ Common fields (ใช้หลายประเภท)
+  reeferCount     Int? // จำนวนตู้ Reefer
+  mainEngineCount Int? // เครื่องจักรใหญ่กี่เครื่อง
+  mainEngineHours Decimal? @db.Decimal(10, 2) // กี่ชั่วโมง (รองรับทศนิยม)
+  generatorCount  Int? // เครื่องไฟกี่เครื่อง
+  generatorHours  Decimal? @db.Decimal(10, 2) // กี่ชั่วโมง
+  fuelUsed        Decimal? @db.Decimal(12, 2) // ยอดน้ำมันที่ใช้ไป (ยังไม่รู้สูตร)
+
+  // ✅ เฉพาะ Cargo work (Load/Discharge)
+  containerCount       Int?
+  totalContainerWeight Decimal? @db.Decimal(14, 3)
+
+  // ✅ เฉพาะ Full speed away
+  avgSpeed Decimal? @db.Decimal(10, 2)
+
+  // ✅ OTHER / หมายเหตุ
+  remark String? @db.VarChar(500)
+
+  active Boolean @default(true)
+
+  createdById Int
+  createdBy   User   @relation("ActivityCreatedBy", fields: [createdById], references: [id])
+  voyage      Voyage @relation(fields: [voyageId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([voyageId])
+  @@index([year, month])
+}
+
+model Consumption {
+  id         Int                 @id @default(autoincrement())
+  activityId Int
+  category   ConsumptionCategory
+  itemName   String              @db.VarChar(100) // เช่น "MDO", "HFO", "Fresh Water", "Lube Oil"
+  quantity   Decimal             @db.Decimal(14, 3)
+  unit       ConsumptionUnit
+  source     ConsumptionSource   @default(MANUAL)
+  remark     String?             @db.VarChar(500)
+  active     Boolean             @default(true)
+  scope      ConsumptionScope    @default(OTHER)
+
+  createdById Int
+  createdBy   User     @relation("ConsumptionCreatedBy", fields: [createdById], references: [id])
+  activity    Activity @relation(fields: [activityId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activityId])
+  @@index([category])
+}
+
+model FuelRob {
+  id         Int      @id @default(autoincrement())
+  voyageId   Int      @unique
+  openingRob Decimal  @db.Decimal(14, 2)
+  closingRob Decimal  @db.Decimal(14, 2)
+  unit       String   @default("L")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  voyage Voyage @relation(fields: [voyageId], references: [id], onDelete: Cascade)
+}
+
+model FuelBunkerEvent {
+  id        Int      @id @default(autoincrement())
+  voyageId  Int
+  at        DateTime
+  amount    Decimal  @db.Decimal(14, 2)
+  unit      String   @default("L")
+  remark    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  voyage Voyage @relation(fields: [voyageId], references: [id], onDelete: Cascade)
+
+  @@index([voyageId, at])
+}
+
+enum ConsumptionScope {
+  MAIN_ENGINE
+  GENERATOR
+  REEFER
+  AUXILIARY
+  OTHER
+}
+
+enum ConsumptionCategory {
+  FUEL
+  LUBE
+  WATER
+  OTHER
+}
+
+enum ConsumptionUnit {
+  LITER
+  KG
+  TON
+  KWH
+  OTHER
+}
+
+enum ConsumptionSource {
+  MANUAL
+  CALCULATED
+}
+
+enum VoyageStatus {
+  OPEN
+  CLOSED
+}
+
+enum Role {
+  EMPLOYEE
+  SUPERVISOR
+  MANAGER
+  ADMIN
+}
+
+enum ActivityType {
+  CARGO_LOAD
+  MANOEUVRING
+  FULL_SPEED_AWAY
+  ANCHORING
+  CARGO_DISCHARGE
+  OTHER
+}
