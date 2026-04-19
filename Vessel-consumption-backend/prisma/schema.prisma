@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -86,24 +85,54 @@ model Activity {
 
   consumptions Consumption[]
 
-  // (optional) เก็บปี/เดือนจาก startAt เพื่อ query ง่ายในอนาคต
+  // เก็บปี/เดือนจาก startAt เพื่อ query ง่าย
   year  Int
   month Int
 
-  // ✅ Common fields (ใช้หลายประเภท)
-  reeferCount     Int? // จำนวนตู้ Reefer
-  mainEngineCount Int? // เครื่องจักรใหญ่กี่เครื่อง
-  mainEngineHours Decimal? @db.Decimal(10, 2) // กี่ชั่วโมง (รองรับทศนิยม)
-  generatorCount  Int? // เครื่องไฟกี่เครื่อง
-  generatorHours  Decimal? @db.Decimal(10, 2) // กี่ชั่วโมง
-  fuelUsed        Decimal? @db.Decimal(12, 2) // ยอดน้ำมันที่ใช้ไป (ยังไม่รู้สูตร)
+  // ✅ Common fields
+  reeferCount Int?
+  fuelUsed    Decimal? @db.Decimal(12, 2)
 
-  // ✅ เฉพาะ Cargo work (Load/Discharge)
-  containerCount       Int?
-  totalContainerWeight Decimal? @db.Decimal(14, 3)
+  // ✅ เครื่องไฟฟ้า 1/2 (Cargo, Anchoring, FSW, Manoeuvring)
+  generator1Count Int?
+  generator1Hours Decimal? @db.Decimal(10, 2)
+  generator2Count Int?
+  generator2Hours Decimal? @db.Decimal(10, 2)
 
-  // ✅ เฉพาะ Full speed away
-  avgSpeed Decimal? @db.Decimal(10, 2)
+  // ✅ Deckgen (Cargo, Anchoring)
+  deckgenCount Int?
+  deckgenHours Decimal? @db.Decimal(10, 2)
+
+  // ✅ เครื่องจักรใหญ่ 1/2 (FSW, Manoeuvring)
+  mainEngine1Count Int?
+  mainEngine1Hours Decimal? @db.Decimal(10, 2)
+  mainEngine2Count Int?
+  mainEngine2Hours Decimal? @db.Decimal(10, 2)
+
+  // ✅ ตู้ แยกขนาด (Cargo, Anchoring)
+  container20Count     Int?
+  container40Count     Int?
+  totalContainerWeight Decimal? @db.Decimal(14, 3) // เฉพาะ Cargo
+
+  // ✅ Draft (Cargo, Anchoring)
+  draftFore String? @db.VarChar(20)
+  draftAft  String? @db.VarChar(20)
+
+  // ✅ ท่าเทียบ (Cargo เท่านั้น)
+  berth    String? @db.VarChar(10)  // "BKK" | "LCB"
+  berthSub String? @db.VarChar(20) // เช่น "BMT", "KLN", "PA1"
+
+  // ✅ สถานที่ทอดสมอ (Anchoring เท่านั้น)
+  anchorLocation String? @db.VarChar(200)
+
+  // ✅ Full speed away
+  avgSpeed Decimal? @db.Decimal(10, 2) // หน่วย: นอต
+
+  // ✅ กระแสน้ำ (FSW, Manoeuvring)
+  currentDirection String? @db.VarChar(20) // "AGAINST" | "WITH"
+
+  // ✅ ทิศทางลม (FSW เท่านั้น)
+  windDirection String? @db.VarChar(10) // "N"|"NE"|"E"|"SE"|"S"|"SW"|"W"|"NW"
 
   // ✅ OTHER / หมายเหตุ
   remark String? @db.VarChar(500)

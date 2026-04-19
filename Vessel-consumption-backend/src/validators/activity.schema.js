@@ -1,78 +1,114 @@
 import { z } from "zod";
 
-/**
- * Helpers
- */
 const intPos = z.coerce.number().int().nonnegative();
-const intPosStrict = z.coerce.number().int().positive(); // >0
+const intPosStrict = z.coerce.number().int().positive();
 const numPos = z.coerce.number().finite().nonnegative();
-const numPosStrict = z.coerce.number().finite().positive(); // >0
+const numPosStrict = z.coerce.number().finite().positive();
 
 const baseTimeFields = {
   startAt: z.coerce.date(),
   endAt: z.coerce.date(),
 };
 
-const commonFields = {
-  // shared
-  reeferCount: intPos, // จำนวนตู้ Reefer
-  mainEngineCount: intPosStrict, // เครื่องจักรใหญ่กี่เครื่อง
-  mainEngineHours: numPos, // กี่ชม.
-  generatorCount: intPosStrict, // เครื่องไฟกี่เครื่อง
-  generatorHours: numPos, // กี่ชม.
-  fuelUsed: numPos.optional(), // ยังไม่รู้สูตร - เก็บไว้ก่อน
-  remark: z.string().max(500).optional(),
+const generatorFields = {
+  generator1Count: intPosStrict,
+  generator1Hours: numPos,
+  generator2Count: intPosStrict,
+  generator2Hours: numPos,
 };
 
-const cargoFields = {
-  containerCount: intPosStrict, // จำนวนตู้
-  totalContainerWeight: numPos, // น้ำหนักตู้ทั้งหมด
+const deckgenFields = {
+  deckgenCount: intPos,
+  deckgenHours: numPos,
+};
+
+const draftFields = {
+  draftFore: z.string().max(20).optional(),
+  draftAft: z.string().max(20).optional(),
+};
+
+const currentDirectionField = {
+  currentDirection: z.enum(["AGAINST", "WITH"]).optional(),
+};
+
+const mainEngine12Fields = {
+  mainEngine1Count: intPosStrict,
+  mainEngine1Hours: numPos,
+  mainEngine2Count: intPosStrict,
+  mainEngine2Hours: numPos,
 };
 
 /**
- * Per-type schemas (Body only)
- * - ทุก type ต้องมี startAt + endAt
- * - field required แตกต่างกันตาม type
+ * Cargo work fields (LOAD & DISCHARGE — identical)
  */
+const cargoWorkFields = {
+  container20Count: intPos,
+  container40Count: intPos,
+  totalContainerWeight: numPos,
+  ...generatorFields,
+  ...deckgenFields,
+  reeferCount: intPos,
+  ...draftFields,
+  berth: z.enum(["BKK", "LCB"]).optional(),
+  berthSub: z.string().max(20).optional(),
+  fuelUsed: numPos.optional(),
+  remark: z.string().max(500).optional(),
+};
+
 const CargoLoadBody = z.object({
   type: z.literal("CARGO_LOAD"),
   ...baseTimeFields,
-  ...cargoFields,
-  ...commonFields,
+  ...cargoWorkFields,
 }).strict();
 
 const CargoDischargeBody = z.object({
   type: z.literal("CARGO_DISCHARGE"),
   ...baseTimeFields,
-  ...cargoFields,
-  ...commonFields,
-}).strict();
-
-const ManoeuvringBody = z.object({
-  type: z.literal("MANOEUVRING"),
-  ...baseTimeFields,
-  // ไม่มี containerCount/weight
-  ...commonFields,
+  ...cargoWorkFields,
 }).strict();
 
 const AnchoringBody = z.object({
   type: z.literal("ANCHORING"),
   ...baseTimeFields,
-  ...commonFields,
+  container20Count: intPos,
+  container40Count: intPos,
+  reeferCount: intPos,
+  ...generatorFields,
+  ...deckgenFields,
+  ...draftFields,
+  anchorLocation: z.string().max(200).optional(),
+  fuelUsed: numPos.optional(),
+  remark: z.string().max(500).optional(),
+}).strict();
+
+const ManoeuvringBody = z.object({
+  type: z.literal("MANOEUVRING"),
+  ...baseTimeFields,
+  reeferCount: intPos,
+  ...mainEngine12Fields,
+  ...generatorFields,
+  ...currentDirectionField,
+  fuelUsed: numPos.optional(),
+  remark: z.string().max(500).optional(),
 }).strict();
 
 const FullSpeedAwayBody = z.object({
   type: z.literal("FULL_SPEED_AWAY"),
   ...baseTimeFields,
-  avgSpeed: numPosStrict, // ความเร็วเฉลี่ยตอน FSW
-  ...commonFields,
+  avgSpeed: numPosStrict, // หน่วย: นอต
+  reeferCount: intPos,
+  ...mainEngine12Fields,
+  ...generatorFields,
+  ...currentDirectionField,
+  windDirection: z.enum(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]).optional(),
+  fuelUsed: numPos.optional(),
+  remark: z.string().max(500).optional(),
 }).strict();
 
 const OtherBody = z.object({
   type: z.literal("OTHER"),
   ...baseTimeFields,
-  remark: z.string().min(1).max(500), // OTHER บังคับมีรายละเอียด
-  // field อื่นไม่บังคับ
+  remark: z.string().min(1).max(500),
 }).strict();
 
 /**
@@ -82,88 +118,70 @@ export const activityBodySchema = z
   .discriminatedUnion("type", [
     CargoLoadBody,
     CargoDischargeBody,
-    ManoeuvringBody,
     AnchoringBody,
+    ManoeuvringBody,
     FullSpeedAwayBody,
     OtherBody,
   ])
   .superRefine((val, ctx) => {
-    // ทุก type ต้อง endAt > startAt
     if (val.endAt <= val.startAt) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["endAt"],
-        message: "endAt must be greater than startAt",
-      });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endAt"], message: "endAt must be greater than startAt" });
     }
-
-    // กันค่าติดลบ (เผื่อ coerce มาแปลก ๆ)
-    // (ตัว schema คุมไว้แล้ว แต่อันนี้เป็นกันพลาด)
-    if ("mainEngineHours" in val && val.mainEngineHours < 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["mainEngineHours"],
-        message: "mainEngineHours must be >= 0",
-      });
-    }
-    if ("generatorHours" in val && val.generatorHours < 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["generatorHours"],
-        message: "generatorHours must be >= 0",
-      });
+    const hourFields = ["mainEngine1Hours", "mainEngine2Hours", "generator1Hours", "generator2Hours", "deckgenHours"];
+    for (const f of hourFields) {
+      if (f in val && val[f] < 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [f], message: `${f} must be >= 0` });
+      }
     }
   });
 
-/**
- * Request schemas (params + body)
- */
 export const createActivitySchema = z.object({
-  params: z.object({
-    voyageId: z.coerce.number().int().positive(),
-  }),
+  params: z.object({ voyageId: z.coerce.number().int().positive() }),
   body: activityBodySchema,
 });
 
 export const updateActivitySchema = z.object({
-  params: z.object({
-    id: z.coerce.number().int().positive(),
-  }),
-  body: z
-    .object({
-      // ให้ส่ง type ได้ แต่ไม่บังคับ (ส่วนใหญ่ไม่ต้องส่ง)
-      type: z
-        .enum([
-          "CARGO_LOAD",
-          "MANOEUVRING",
-          "FULL_SPEED_AWAY",
-          "ANCHORING",
-          "CARGO_DISCHARGE",
-          "OTHER",
-        ])
-        .optional(),
+  params: z.object({ id: z.coerce.number().int().positive() }),
+  body: z.object({
+    type: z.enum(["CARGO_LOAD", "CARGO_DISCHARGE", "MANOEUVRING", "FULL_SPEED_AWAY", "ANCHORING", "OTHER"]).optional(),
+    startAt: z.coerce.date().optional(),
+    endAt: z.coerce.date().optional(),
 
-      startAt: z.coerce.date().optional(),
-      endAt: z.coerce.date().optional(),
+    // Cargo / Anchoring
+    container20Count: z.coerce.number().int().nonnegative().optional(),
+    container40Count: z.coerce.number().int().nonnegative().optional(),
+    totalContainerWeight: z.coerce.number().finite().nonnegative().optional(),
+    berth: z.enum(["BKK", "LCB"]).optional(),
+    berthSub: z.string().max(20).optional(),
+    anchorLocation: z.string().max(200).optional(),
 
-      containerCount: z.coerce.number().int().positive().optional(),
-      totalContainerWeight: z.coerce.number().finite().nonnegative().optional(),
+    // Draft
+    draftFore: z.string().max(20).optional(),
+    draftAft: z.string().max(20).optional(),
 
-      reeferCount: z.coerce.number().int().nonnegative().optional(),
+    // Generator
+    generator1Count: z.coerce.number().int().positive().optional(),
+    generator1Hours: z.coerce.number().finite().nonnegative().optional(),
+    generator2Count: z.coerce.number().int().positive().optional(),
+    generator2Hours: z.coerce.number().finite().nonnegative().optional(),
 
-      mainEngineCount: z.coerce.number().int().positive().optional(),
-      mainEngineHours: z.coerce.number().finite().nonnegative().optional(),
+    // Deckgen
+    deckgenCount: z.coerce.number().int().nonnegative().optional(),
+    deckgenHours: z.coerce.number().finite().nonnegative().optional(),
 
-      generatorCount: z.coerce.number().int().positive().optional(),
-      generatorHours: z.coerce.number().finite().nonnegative().optional(),
+    // Main engine 1/2
+    mainEngine1Count: z.coerce.number().int().positive().optional(),
+    mainEngine1Hours: z.coerce.number().finite().nonnegative().optional(),
+    mainEngine2Count: z.coerce.number().int().positive().optional(),
+    mainEngine2Hours: z.coerce.number().finite().nonnegative().optional(),
 
-      fuelUsed: z.coerce.number().finite().nonnegative().optional(),
-
-      avgSpeed: z.coerce.number().finite().positive().optional(),
-
-      remark: z.string().max(500).optional(),
-
-      active: z.boolean().optional(),
-    })
-    .strict(),
+    // Common
+    reeferCount: z.coerce.number().int().nonnegative().optional(),
+    fuelUsed: z.coerce.number().finite().nonnegative().optional(),
+    avgSpeed: z.coerce.number().finite().positive().optional(),
+    currentDirection: z.enum(["AGAINST", "WITH"]).optional(),
+    windDirection: z.enum(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]).optional(),
+    remark: z.string().max(500).optional(),
+    active: z.boolean().optional(),
+  }).strict(),
 });
