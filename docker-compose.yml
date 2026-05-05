@@ -1,0 +1,61 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root1234
+      MYSQL_DATABASE: vessel_consumption
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot1234"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+
+  backend:
+    build: ./Vessel-consumption-backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://root:root1234@db:3306/vessel_consumption
+      JWT_SECRET: supersecret_jwt_key_2026
+      PORT: 8000
+      NODE_ENV: production
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root1234
+      DB_NAME: vessel_consumption
+      CORS_ORIGIN: http://localhost:3000
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "
+        echo 'Pushing schema...' &&
+        npx prisma db push --force-reset &&
+        echo 'Generating client...' &&
+        npx prisma generate &&
+        echo 'Running seed...' &&
+        node prisma/seed.js &&
+        echo 'Starting server...' &&
+        node src/server.js
+      "
+
+  frontend:
+    build:
+      context: ./Vessel-consumption-frontend
+      args:
+        VITE_API_URL: http://localhost:8000
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  db_data:

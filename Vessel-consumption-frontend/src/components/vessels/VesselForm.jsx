@@ -72,9 +72,9 @@ function Field({ label, children }) {
 export default function VesselForm({ initial = {}, onSubmit, onCancel, saving }) {
   const [form, setForm] = useState({ ...EMPTY_FORM, ...initial });
 
-  const set  = (key) => (e) => setForm((p) => ({ ...p, [key]: e.target.value }));
+  const set = (key) => (e) => setForm((p) => ({ ...p, [key]: e.target.value }));
   const setB = (key) => (e) => setForm((p) => ({ ...p, [key]: e.target.checked }));
-  const f    = (key) => form[key] ?? "";
+  const f = (key) => form[key] ?? "";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -82,80 +82,80 @@ export default function VesselForm({ initial = {}, onSubmit, onCancel, saving })
     if (!form.name.trim()) return alertError("ข้อมูลไม่ครบ", "กรุณากรอกชื่อเรือ");
 
     const toNum = (v) => (v === "" || v === null || v === undefined) ? undefined : Number(v);
-    const toStr  = (v) => v?.trim() || undefined;
+    const toStr = (v) => v?.trim() || undefined;
     const toDate = (v) => v ? new Date(v).toISOString() : undefined;
     const toInt = (v) => (v === "" || v === null || v === undefined) ? undefined : parseInt(v);
 
     const payload = {
       // ทั่วไป
-      code:         form.code.trim(),
-      name:         form.name.trim(),
-      shortName:    toStr(form.shortName),
-      exName:       toStr(form.exName),
-      type:         toStr(form.type),
-      owner:        toStr(form.owner),
+      code: form.code.trim(),
+      name: form.name.trim(),
+      shortName: toStr(form.shortName),
+      exName: toStr(form.exName),
+      type: toStr(form.type),
+      owner: toStr(form.owner),
       ownerAddress: toStr(form.ownerAddress),
-      charterer:    toStr(form.charterer),
+      charterer: toStr(form.charterer),
       // ทะเบียน
-      imoNumber:      toStr(form.imoNumber),
-      mmsi:           toStr(form.mmsi),
-      callSign:       toStr(form.callSign),
+      imoNumber: toStr(form.imoNumber),
+      mmsi: toStr(form.mmsi),
+      callSign: toStr(form.callSign),
       registrationNo: toStr(form.registrationNo),
-      flag:           toStr(form.flag),
+      flag: toStr(form.flag),
       portOfRegistry: toStr(form.portOfRegistry),
       classification: toStr(form.classification),
-      yearBuilt:      toInt(form.yearBuilt),
-      lastDrydock:    toDate(form.lastDrydock),
+      yearBuilt: toInt(form.yearBuilt),
+      lastDrydock: toDate(form.lastDrydock),
       // ขนาด
-      loaMeters:        toNum(form.loaMeters),
-      breadthMeters:    toNum(form.breadthMeters),
-      depthMeters:      toNum(form.depthMeters),
-      draftSummer:      toNum(form.draftSummer),
-      draftTropical:    toNum(form.draftTropical),
-      draftTropicalFw:  toNum(form.draftTropicalFw),
+      loaMeters: toNum(form.loaMeters),
+      breadthMeters: toNum(form.breadthMeters),
+      depthMeters: toNum(form.depthMeters),
+      draftSummer: toNum(form.draftSummer),
+      draftTropical: toNum(form.draftTropical),
+      draftTropicalFw: toNum(form.draftTropicalFw),
       draftAftFullLoad: toNum(form.draftAftFullLoad),
-      fwa:              toNum(form.fwa),
-      lightShip:        toNum(form.lightShip),
-      dwtSummer:        toNum(form.dwtSummer),
-      dwtTropical:      toNum(form.dwtTropical),
-      tpc:              toNum(form.tpc),
+      fwa: toNum(form.fwa),
+      lightShip: toNum(form.lightShip),
+      dwtSummer: toNum(form.dwtSummer),
+      dwtTropical: toNum(form.dwtTropical),
+      tpc: toNum(form.tpc),
       // Tonnage
       grt: toNum(form.grt),
       nrt: toNum(form.nrt),
       // Speed
-      normalSpeed:   toNum(form.normalSpeed),
+      normalSpeed: toNum(form.normalSpeed),
       normalFullRpm: toNum(form.normalFullRpm),
-      maximumSpeed:  toNum(form.maximumSpeed),
-      maximumRpm:    toNum(form.maximumRpm),
+      maximumSpeed: toNum(form.maximumSpeed),
+      maximumRpm: toNum(form.maximumRpm),
       // Main Engine
-      mainEngineP:       toStr(form.mainEngineP),
-      mainEnginePKw:     toNum(form.mainEnginePKw),
-      mainEnginePCons:   toNum(form.mainEnginePCons),
-      mainEngineS:       toStr(form.mainEngineS),
-      mainEngineSKw:     toNum(form.mainEngineSKw),
-      mainEngineSCons:   toNum(form.mainEngineSCons),
+      mainEngineP: toStr(form.mainEngineP),
+      mainEnginePKw: toNum(form.mainEnginePKw),
+      mainEnginePCons: toNum(form.mainEnginePCons),
+      mainEngineS: toStr(form.mainEngineS),
+      mainEngineSKw: toNum(form.mainEngineSKw),
+      mainEngineSCons: toNum(form.mainEngineSCons),
       mainEngineMaxCons: toNum(form.mainEngineMaxCons),
       // Generator
-      generator1:     toStr(form.generator1),
-      generator1Kw:   toNum(form.generator1Kw),
+      generator1: toStr(form.generator1),
+      generator1Kw: toNum(form.generator1Kw),
       generator1Cons: toNum(form.generator1Cons),
-      generator2:     toStr(form.generator2),
-      generator2Kw:   toNum(form.generator2Kw),
+      generator2: toStr(form.generator2),
+      generator2Kw: toNum(form.generator2Kw),
       generator2Cons: toNum(form.generator2Cons),
-      auxEngine:      toStr(form.auxEngine),
+      auxEngine: toStr(form.auxEngine),
       // Tank
       fuelBunkerTankCbm: toNum(form.fuelBunkerTankCbm),
       freshWaterTankCbm: toNum(form.freshWaterTankCbm),
       // Cargo
       containerStowageTeu: toInt(form.containerStowageTeu),
-      maxCargoCapacityMt:  toNum(form.maxCargoCapacityMt),
-      noOfCargoHold:       toInt(form.noOfCargoHold),
-      noOfRow:             toInt(form.noOfRow),
-      reeferPoints:        toInt(form.reeferPoints),
-      dgApproved:          form.dgApproved,
+      maxCargoCapacityMt: toNum(form.maxCargoCapacityMt),
+      noOfCargoHold: toInt(form.noOfCargoHold),
+      noOfRow: toInt(form.noOfRow),
+      reeferPoints: toInt(form.reeferPoints),
+      dgApproved: form.dgApproved,
       // Contact
       contactEmail: toStr(form.contactEmail),
-      contactLine:  toStr(form.contactLine),
+      contactLine: toStr(form.contactLine),
       contactPhone: toStr(form.contactPhone),
     };
 
@@ -313,6 +313,14 @@ export default function VesselForm({ initial = {}, onSubmit, onCancel, saving })
               <input type="checkbox" checked={form.dgApproved} onChange={setB("dgApproved")} className="w-4 h-4 cursor-pointer" />
               <span className="text-sm text-slate-700">Yes</span>
             </div>
+          </Field>
+        </Row>
+        <Row>
+          <Field label="Max TEUs (100%)">
+            <Input type="number" value={f("maxTeus")} onChange={set("maxTeus")} placeholder="เช่น 120" />
+          </Field>
+          <Field label="Max Weight MT (100%)">
+            <Input type="number" value={f("maxWeightMt")} onChange={set("maxWeightMt")} placeholder="เช่น 1898" />
           </Field>
         </Row>
       </Section>
